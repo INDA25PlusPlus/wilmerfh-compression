@@ -9,6 +9,25 @@ struct HuffmanTree {
 }
 
 impl HuffmanTree {
+    fn serialize(&self) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        self.collect_leaves(&mut bytes);
+        let mut result = vec![bytes.len() as u8];
+        result.extend(bytes);
+        result
+    }
+
+    fn collect_leaves(&self, out: &mut Vec<u8>) {
+        match &self.left {
+            Node::Leaf(b) => out.push(*b),
+            Node::Tree(t) => t.collect_leaves(out),
+        }
+        match &self.right {
+            Node::Leaf(b) => out.push(*b),
+            Node::Tree(t) => t.collect_leaves(out),
+        }
+    }
+
     fn from_sorted(bytes: &[u8]) -> HuffmanTree {
         if bytes.len() == 2 {
             HuffmanTree {
