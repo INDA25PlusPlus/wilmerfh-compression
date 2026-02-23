@@ -1,6 +1,27 @@
+enum Node {
+    Leaf(u8),
+    Tree(Box<HuffmanTree>),
+}
+
 struct HuffmanTree {
-    left: u8,
-    right: Box<HuffmanTree>,
+    left: Node,
+    right: Node,
+}
+
+impl HuffmanTree {
+    fn from_sorted(bytes: &[u8]) -> HuffmanTree {
+        if bytes.len() == 2 {
+            HuffmanTree {
+                left: Node::Leaf(bytes[0]),
+                right: Node::Leaf(bytes[1]),
+            }
+        } else {
+            HuffmanTree {
+                left: Node::Leaf(bytes[0]),
+                right: Node::Tree(Box::new(HuffmanTree::from_sorted(&bytes[1..]))),
+            }
+        }
+    }
 }
 
 fn read_input(path: &str) -> Vec<u8> {
