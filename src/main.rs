@@ -1,10 +1,36 @@
+struct Encoded {
+    bytes: Vec<u8>,
+    padding: u8,
+}
+
+impl Encoded {
+    fn from_bits(bits: &[bool]) -> Encoded {
+        let padding = if bits.len() % 8 == 0 {
+            0
+        } else {
+            8 - (bits.len() % 8) as u8
+        };
+        let mut bytes = Vec::new();
+        for chunk in bits.chunks(8) {
+            let mut byte = 0u8;
+            for (i, &bit) in chunk.iter().enumerate() {
+                if bit {
+                    byte |= 1 << (7 - i);
+                }
+            }
+            bytes.push(byte);
+        }
+        Encoded { bytes, padding }
+    }
+}
+
 enum Node {
     Leaf(u8),
     Tree(Box<HuffmanTree>),
 }
 
 struct HuffmanTree {
-    left: Node,
+    left: u8,
     right: Node,
 }
 
@@ -18,25 +44,54 @@ impl HuffmanTree {
     }
 
     fn collect_leaves(&self, out: &mut Vec<u8>) {
-        match &self.left {
-            Node::Leaf(b) => out.push(*b),
-            Node::Tree(t) => t.collect_leaves(out),
-        }
+        out.push(self.left);
         match &self.right {
             Node::Leaf(b) => out.push(*b),
             Node::Tree(t) => t.collect_leaves(out),
         }
     }
 
+    fn build_map(&self) -> std::collections::HashMap<u8, Vec<bool>> {
+        let mut map = std::collections::HashMap::new();
+        let mut code = Vec::new();
+        let mut current = self;
+
+        loop {
+            code.push(false);
+            map.insert(current.left, code.clone());
+
+            code.pop();
+            code.push(true);
+            match &current.right {
+                Node::Leaf(b) => {
+                    map.insert(*b, code.clone());
+                    break;
+                }
+                Node::Tree(t) => current = t,
+            }
+        }
+        map
+    }
+
+    fn encode(&self, data: &[u8]) -> Encoded {
+        let map = self.build_map();
+        let mut bits: Vec<bool> = Vec::new();
+        for &b in data {
+            let code = map.get(&b).expect("byte not in tree");
+            bits.extend(code);
+        }
+        Encoded::from_bits(&bits)
+    }
+
     fn from_sorted(bytes: &[u8]) -> HuffmanTree {
         if bytes.len() == 2 {
             HuffmanTree {
-                left: Node::Leaf(bytes[0]),
+                left: bytes[0],
                 right: Node::Leaf(bytes[1]),
             }
         } else {
             HuffmanTree {
-                left: Node::Leaf(bytes[0]),
+                left: bytes[0],
                 right: Node::Tree(Box::new(HuffmanTree::from_sorted(&bytes[1..]))),
             }
         }
@@ -62,5 +117,12 @@ fn main() {
     let path = &args[1];
     let bytes = read_input(path);
     let sorted = count_frequencies(&bytes);
-    println!("{:?}", sorted);
+    let tree = HuffmanTree::from_sorted(&sorted);
+    let encoded = tree.encode(&bytes);
+    println!("original: {} bytes", bytes.len());
+    println!(
+        "encoded:  {} bytes ({} padding bits)",
+        encoded.bytes.len(),
+        encoded.padding
+    );
 }
