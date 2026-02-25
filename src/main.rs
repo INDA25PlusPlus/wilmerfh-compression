@@ -148,6 +148,16 @@ impl HuffmanTree {
     }
 }
 
+fn encode(data: &[u8]) -> Vec<u8> {
+    let sorted = count_frequencies(data);
+    let tree = HuffmanTree::from_sorted(&sorted);
+    tree.encode(data).to_bytes()
+}
+
+fn decode(data: &[u8]) -> Vec<u8> {
+    Encoded::from_bytes(data).decode()
+}
+
 fn read_input(path: &str) -> Vec<u8> {
     std::fs::read(path).expect("failed to read file")
 }
@@ -165,56 +175,38 @@ fn count_frequencies(bytes: &[u8]) -> Vec<u8> {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let path = &args[1];
-    let bytes = read_input(path);
-    let sorted = count_frequencies(&bytes);
-    let tree = HuffmanTree::from_sorted(&sorted);
-    let encoded = tree.encode(&bytes);
-    let total = encoded.tree.len() + encoded.bytes.len();
-    println!("original: {} bytes", bytes.len());
-    println!(
-        "encoded:  {} bytes (tree: {}, data: {}, {} padding bits)",
-        total,
-        encoded.tree.len(),
-        encoded.bytes.len(),
-        encoded.padding
-    );
+    let data = read_input(path);
+    let compressed = encode(&data);
+    println!("original:   {} bytes", data.len());
+    println!("compressed: {} bytes", compressed.len());
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn encode(data: &[u8]) -> Encoded {
-        let sorted = count_frequencies(data);
-        let tree = HuffmanTree::from_sorted(&sorted);
-        tree.encode(data)
-    }
-
     #[test]
-    fn decode_recovers_original_data() {
+    fn round_trip_repetitive_data() {
         let data = b"aaaaaaaaaaaaaaaaaaaab";
-        assert_eq!(encode(data).decode(), data);
+        assert_eq!(decode(&encode(data)), data);
     }
 
     #[test]
-    fn decode_recovers_after_serialization_round_trip() {
-        let data = b"xxyzzy";
-        let raw = encode(data).to_bytes();
-        assert_eq!(Encoded::from_bytes(&raw).decode(), data);
+    fn round_trip_varied_data() {
+        let data = b"abcdefghijabcdefghij";
+        assert_eq!(decode(&encode(data)), data);
     }
 
     #[test]
     fn repetitive_data_is_smaller_overall() {
         let data = b"aaaaaaaaaaaaaaaaaaaab";
-        let encoded = encode(data);
-        let total = encoded.tree.len() + encoded.bytes.len();
-        assert!(total < data.len());
+        assert!(encode(data).len() < data.len());
     }
 
     #[test]
     fn non_repetitive_data_has_smaller_data_part() {
         let data = b"abcdefghijabcdefghij";
-        let encoded = encode(data);
+        let encoded = Encoded::from_bytes(&encode(data));
         assert!(encoded.bytes.len() < data.len());
     }
 }
