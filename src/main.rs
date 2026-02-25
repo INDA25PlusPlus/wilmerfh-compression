@@ -1,10 +1,11 @@
 struct Encoded {
+    tree: Vec<u8>,
     bytes: Vec<u8>,
     padding: u8,
 }
 
 impl Encoded {
-    fn from_bits(bits: &[bool]) -> Encoded {
+    fn from_bits(bits: &[bool], tree: Vec<u8>) -> Encoded {
         let padding = if bits.len() % 8 == 0 {
             0
         } else {
@@ -20,7 +21,31 @@ impl Encoded {
             }
             bytes.push(byte);
         }
-        Encoded { bytes, padding }
+        Encoded {
+            tree,
+            bytes,
+            padding,
+        }
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut out = vec![self.padding];
+        out.extend(&self.tree);
+        out.extend(&self.bytes);
+        out
+    }
+
+    fn from_bytes(data: &[u8]) -> Encoded {
+        let padding = data[0];
+        let tree_len = data[1] as usize;
+        let tree_end = 2 + tree_len;
+        let tree = data[1..tree_end].to_vec();
+        let bytes = data[tree_end..].to_vec();
+        Encoded {
+            tree,
+            bytes,
+            padding,
+        }
     }
 }
 
@@ -80,7 +105,7 @@ impl HuffmanTree {
             let code = map.get(&b).expect("byte not in tree");
             bits.extend(code);
         }
-        Encoded::from_bits(&bits)
+        Encoded::from_bits(&bits, self.serialize())
     }
 
     fn from_sorted(bytes: &[u8]) -> HuffmanTree {
@@ -119,9 +144,12 @@ fn main() {
     let sorted = count_frequencies(&bytes);
     let tree = HuffmanTree::from_sorted(&sorted);
     let encoded = tree.encode(&bytes);
+    let total = encoded.tree.len() + encoded.bytes.len();
     println!("original: {} bytes", bytes.len());
     println!(
-        "encoded:  {} bytes ({} padding bits)",
+        "encoded:  {} bytes (tree: {}, data: {}, {} padding bits)",
+        total,
+        encoded.tree.len(),
         encoded.bytes.len(),
         encoded.padding
     );
