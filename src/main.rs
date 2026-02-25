@@ -47,6 +47,31 @@ impl Encoded {
             padding,
         }
     }
+
+    fn decode(&self) -> Vec<u8> {
+        let tree = HuffmanTree::from_sorted(&self.tree[1..]);
+        let total_bits = self.bytes.len() * 8 - self.padding as usize;
+        let mut out = Vec::new();
+        let mut current = &tree;
+        for i in 0..total_bits {
+            let byte_idx = i / 8;
+            let bit_idx = 7 - (i % 8);
+            let bit = (self.bytes[byte_idx] >> bit_idx) & 1 == 1;
+            if !bit {
+                out.push(current.left);
+                current = &tree;
+            } else {
+                match &current.right {
+                    Node::Leaf(b) => {
+                        out.push(*b);
+                        current = &tree;
+                    }
+                    Node::Tree(t) => current = t,
+                }
+            }
+        }
+        out
+    }
 }
 
 enum Node {
@@ -137,47 +162,6 @@ fn count_frequencies(bytes: &[u8]) -> Vec<u8> {
     sorted
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn two_byte_tree_assigns_one_bit_each() {
-        let tree = HuffmanTree::from_sorted(&[b'a', b'b']);
-        let map = tree.build_map();
-        assert_eq!(map[&b'a'], vec![false]);
-        assert_eq!(map[&b'b'], vec![true]);
-    }
-
-    #[test]
-    fn encode_produces_smaller_output_for_repetitive_data() {
-        let data = b"aaaaaaaaaaaaaaaaaaaab";
-        let sorted = count_frequencies(data);
-        let tree = HuffmanTree::from_sorted(&sorted);
-        let encoded = tree.encode(data);
-        assert!(encoded.bytes.len() < data.len());
-    }
-
-    #[test]
-    fn encoded_round_trips_through_bytes() {
-        let tree = HuffmanTree::from_sorted(&[b'x', b'y', b'z']);
-        let encoded = tree.encode(b"xxyzzy");
-        let raw = encoded.to_bytes();
-        let restored = Encoded::from_bytes(&raw);
-        assert_eq!(encoded.tree, restored.tree);
-        assert_eq!(encoded.bytes, restored.bytes);
-        assert_eq!(encoded.padding, restored.padding);
-    }
-
-    #[test]
-    fn serialize_starts_with_leaf_count() {
-        let tree = HuffmanTree::from_sorted(&[1, 2, 3]);
-        let serialized = tree.serialize();
-        assert_eq!(serialized[0], 3);
-        assert_eq!(&serialized[1..], &[1, 2, 3]);
-    }
-}
-
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let path = &args[1];
@@ -194,4 +178,43 @@ fn main() {
         encoded.bytes.len(),
         encoded.padding
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn encode(data: &[u8]) -> Encoded {
+        let sorted = count_frequencies(data);
+        let tree = HuffmanTree::from_sorted(&sorted);
+        tree.encode(data)
+    }
+
+    #[test]
+    fn decode_recovers_original_data() {
+        let data = b"aaaaaaaaaaaaaaaaaaaab";
+        assert_eq!(encode(data).decode(), data);
+    }
+
+    #[test]
+    fn decode_recovers_after_serialization_round_trip() {
+        let data = b"xxyzzy";
+        let raw = encode(data).to_bytes();
+        assert_eq!(Encoded::from_bytes(&raw).decode(), data);
+    }
+
+    #[test]
+    fn repetitive_data_is_smaller_overall() {
+        let data = b"aaaaaaaaaaaaaaaaaaaab";
+        let encoded = encode(data);
+        let total = encoded.tree.len() + encoded.bytes.len();
+        assert!(total < data.len());
+    }
+
+    #[test]
+    fn non_repetitive_data_has_smaller_data_part() {
+        let data = b"abcdefghijabcdefghij";
+        let encoded = encode(data);
+        assert!(encoded.bytes.len() < data.len());
+    }
 }
