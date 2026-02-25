@@ -137,6 +137,47 @@ fn count_frequencies(bytes: &[u8]) -> Vec<u8> {
     sorted
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn two_byte_tree_assigns_one_bit_each() {
+        let tree = HuffmanTree::from_sorted(&[b'a', b'b']);
+        let map = tree.build_map();
+        assert_eq!(map[&b'a'], vec![false]);
+        assert_eq!(map[&b'b'], vec![true]);
+    }
+
+    #[test]
+    fn encode_produces_smaller_output_for_repetitive_data() {
+        let data = b"aaaaaaaaaaaaaaaaaaaab";
+        let sorted = count_frequencies(data);
+        let tree = HuffmanTree::from_sorted(&sorted);
+        let encoded = tree.encode(data);
+        assert!(encoded.bytes.len() < data.len());
+    }
+
+    #[test]
+    fn encoded_round_trips_through_bytes() {
+        let tree = HuffmanTree::from_sorted(&[b'x', b'y', b'z']);
+        let encoded = tree.encode(b"xxyzzy");
+        let raw = encoded.to_bytes();
+        let restored = Encoded::from_bytes(&raw);
+        assert_eq!(encoded.tree, restored.tree);
+        assert_eq!(encoded.bytes, restored.bytes);
+        assert_eq!(encoded.padding, restored.padding);
+    }
+
+    #[test]
+    fn serialize_starts_with_leaf_count() {
+        let tree = HuffmanTree::from_sorted(&[1, 2, 3]);
+        let serialized = tree.serialize();
+        assert_eq!(serialized[0], 3);
+        assert_eq!(&serialized[1..], &[1, 2, 3]);
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let path = &args[1];
