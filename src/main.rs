@@ -174,11 +174,33 @@ fn count_frequencies(bytes: &[u8]) -> Vec<u8> {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let path = &args[1];
-    let data = read_input(path);
-    let compressed = encode(&data);
-    println!("original:   {} bytes", data.len());
-    println!("compressed: {} bytes", compressed.len());
+    if args.len() != 4 {
+        eprintln!("usage: {} <encode|decode> <input> <output>", args[0]);
+        std::process::exit(1);
+    }
+    let mode = &args[1];
+    let input = &args[2];
+    let output = &args[3];
+    let data = read_input(input);
+
+    match mode.as_str() {
+        "encode" => {
+            let compressed = encode(&data);
+            std::fs::write(output, &compressed).expect("failed to write output");
+            println!("original:   {} bytes", data.len());
+            println!("compressed: {} bytes", compressed.len());
+        }
+        "decode" => {
+            let decoded = decode(&data);
+            std::fs::write(output, &decoded).expect("failed to write output");
+            println!("compressed: {} bytes", data.len());
+            println!("decoded:    {} bytes", decoded.len());
+        }
+        _ => {
+            eprintln!("unknown mode '{}', expected 'encode' or 'decode'", mode);
+            std::process::exit(1);
+        }
+    }
 }
 
 #[cfg(test)]
